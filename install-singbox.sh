@@ -803,12 +803,13 @@ while true; do
 1) 查看 SS URI
 2) 查看配置文件路径
 3) 编辑配置文件
-4) 启动服务
-5) 停止服务
-6) 重启服务
-7) 查看状态
-8) 更新 sing-box
-9) 卸载 sing-box（无确认）
+4) 重置密码/端口
+5) 启动服务
+6) 停止服务
+7) 重启服务
+8) 查看状态
+9) 更新 sing-box
+10) 卸载 sing-box（无确认）
 0) 退出
 ==========================
 MENU
@@ -818,12 +819,13 @@ MENU
         1) action_view_uri ;;
         2) action_view_config ;;
         3) action_edit_config ;;
-        4) service_start && info "已发送启动命令" ;;
-        5) service_stop && info "已发送停止命令" ;;
-        6) service_restart && info "已发送重启命令" ;;
-        7) service_status ;;
-        8) action_update ;;
-        9) action_uninstall; exit 0 ;;
+        4) action_reset_port_pwd ;;
+        5) service_start && info "已发送启动命令" ;;
+        6) service_stop && info "已发送停止命令" ;;
+        7) service_restart && info "已发送重启命令" ;;
+        8) service_status ;;
+        9) action_update ;;
+        10) action_uninstall; exit 0 ;;
         0) exit 0 ;;
         *) warn "无效选项" ;;
     esac
