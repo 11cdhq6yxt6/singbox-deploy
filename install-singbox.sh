@@ -529,13 +529,23 @@ action_edit_config() { [ ! -f "$CONFIG_PATH" ] && { err "配置文件不存在";
 action_update() { info "开始更新 sing-box..."; [ "$OS" = "alpine" ] && { apk update || warn "apk update 失败"; apk add --upgrade --repository=http://dl-cdn.alpinelinux.org/alpine/edge/community sing-box || bash <(curl -fsSL https://sing-box.app/install.sh) || err "更新失败"; } || bash <(curl -fsSL https://sing-box.app/install.sh) || err "更新失败"; [ -x "$(command -v sing-box)" ] && service_restart; info "更新完成"; }
 
 action_uninstall() {
+action_uninstall() {
     info "正在卸载 sing-box（直接全部删除，无确认）..."
+
+    # 停止服务
     service_stop || true
 
     if [ "$OS" = "alpine" ]; then
+        # 删除 OpenRC 服务注册和脚本
         rc-update del "$SERVICE_NAME" default >/dev/null 2>&1 || true
         [ -f "/etc/init.d/$SERVICE_NAME" ] && rm -f "/etc/init.d/$SERVICE_NAME"
+
+        # 卸载 sing-box apk 包
+        if apk info | grep -q '^sing-box$'; then
+            apk del sing-box >/dev/null 2>&1 || warn "卸载 sing-box apk 包失败"
+        fi
     else
+        # systemd 系统
         systemctl stop "$SERVICE_NAME" >/dev/null 2>&1 || true
         systemctl disable "$SERVICE_NAME" >/dev/null 2>&1 || true
         [ -f "/etc/systemd/system/$SERVICE_NAME.service" ] && rm -f "/etc/systemd/system/$SERVICE_NAME.service"
@@ -551,7 +561,9 @@ action_uninstall() {
     # 删除 sb 管理脚本
     [ -f "/usr/local/bin/sb" ] && rm -f "/usr/local/bin/sb"
 
-    info "卸载完成，所有配置、日志、可执行文件及 sb 管理脚本已删除"
+    info "卸载完成，所有配置、日志、可执行文件、sb 管理脚本及 Alpine 包已删除"
+}
+
 }
 
 while true; do
