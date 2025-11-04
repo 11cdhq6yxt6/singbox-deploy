@@ -2,10 +2,7 @@
 
 一个跨平台、自动化、全兼容的 **Sing-box Shadowsocks 2022 (2022-blake3-aes-128-gcm)** 一键部署脚本。
 
-✅ **一次运行即可完成安装 / 配置 / 开机自启 / 服务管理 / 链接生成**  
-✅ 兼容 **Alpine、Debian、Ubuntu、CentOS/RHEL/Fedora 以及多数 Linux 发行版**  
-✅ 兼容 **x86_64 / arm64 / armv7 / 386** 等主流 CPU 架构  
-✅ 自动从 GitHub 获取最新版本 sing-box（二进制安装）  
+✅ **一次运行即可完成安装 / 配置 / 开机自启 / 面板管理 / 链接生成**  
 
 ---
 
