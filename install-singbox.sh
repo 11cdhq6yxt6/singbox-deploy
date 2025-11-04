@@ -125,7 +125,7 @@ get_config
 # 安装 sing-box
 install_singbox() {
     info "开始安装 sing-box..."
-    
+
     # 检查是否已安装
     if command -v sing-box >/dev/null 2>&1; then
         CURRENT_VERSION=$(sing-box version 2>/dev/null | head -1 || echo "unknown")
@@ -136,20 +136,36 @@ install_singbox() {
             return 0
         fi
     fi
-    
-    # 使用官方安装脚本
-    bash <(curl -fsSL https://sing-box.app/install.sh) || {
-        err "sing-box 安装失败"
-        err "请检查网络连接或手动安装"
-        exit 1
-    }
-    
+
+    case "$OS" in
+        alpine)
+            info "使用 Edge 仓库安装 sing-box"
+            apk update || { err "apk update 失败"; exit 1; }
+            apk add --repository=http://dl-cdn.alpinelinux.org/alpine/edge/community sing-box || {
+                err "sing-box 安装失败"
+                exit 1
+            }
+            ;;
+        debian|redhat)
+            # 原官方安装脚本
+            bash <(curl -fsSL https://sing-box.app/install.sh) || {
+                err "sing-box 安装失败"
+                err "请检查网络连接或手动安装"
+                exit 1
+            }
+            ;;
+        *)
+            err "未支持的系统，无法安装 sing-box"
+            exit 1
+            ;;
+    esac
+
     # 验证安装
     if ! command -v sing-box >/dev/null 2>&1; then
         err "sing-box 安装后未找到可执行文件"
         exit 1
     fi
-    
+
     INSTALLED_VERSION=$(sing-box version 2>/dev/null | head -1 || echo "unknown")
     info "sing-box 安装成功: $INSTALLED_VERSION"
 }
