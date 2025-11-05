@@ -826,24 +826,35 @@ info "线路机监听端口: $LISTEN_PORT"
 mkdir -p /etc/sing-box
 cat > /etc/sing-box/config.json <<EOF
 {
+  "log": {
+    "level": "info",
+    "timestamp": true
+  },
   "inbounds": [
     {
       "type": "vless",
       "listen": "::",
       "listen_port": $LISTEN_PORT,
       "users": [
-        { "uuid": "$UUID", "flow": "xtls-rprx-vision" }
+        {
+          "uuid": "$UUID",
+          "flow": "xtls-rprx-vision"
+        }
       ],
       "tls": {
         "enabled": true,
         "server_name": "addons.mozilla.org",
         "reality": {
           "enabled": true,
-          "handshake": { "server": "addons.mozilla.org", "port": 443 },
-          "private_key": "$REALITY_PK",
+          "handshake": {
+            "server": "addons.mozilla.org",
+            "port": 443
+          },
+          "private_key": "$REALITY_PK"",
           "short_id": [ "$REALITY_SID" ]
         }
-      }
+      },
+      "tag": "vless-in"
     }
   ],
   "outbounds": [
@@ -852,9 +863,21 @@ cat > /etc/sing-box/config.json <<EOF
       "server": "$INBOUND_IP",
       "server_port": $INBOUND_PORT,
       "method": "$INBOUND_METHOD",
-      "password": "$INBOUND_PASSWORD"
+      "password": "$INBOUND_PASSWORD",
+      "tag": "relay-out"
+    },
+    {
+      "type": "direct",
+      "tag": "direct-out"
     }
-  ]
+  ],
+  "route": {
+    "rules": [
+      {
+        "outbound": "relay-out"
+      }
+    ]
+  }
 }
 EOF
 if [ "$OS" = "alpine" ]; then
