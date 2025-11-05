@@ -812,15 +812,22 @@ install_singbox
 UUID=$(cat /proc/sys/kernel/random/uuid)
 REALITY_PK=$(head -c 32 /dev/urandom | base64)
 REALITY_SID=$(head -c 8 /dev/urandom | base64)
-read -p "输入线路机监听端口（留空自动）: " p
+read -p "输入线路机监听端口（留空自动选择未占用端口）: " p
+
+# 如果用户没输入，则随机选一个空闲端口
 if [ -z "$p" ]; then
-    for i in $(seq 20000 65000); do
-        if ! ss -tuln | grep -q ":$i "; then
-            p=$i
+    while :; do
+        candidate=$((RANDOM % 45001 + 20000))  # 20000-65000
+        # 检查端口是否被占用
+        is_used=$(awk '{print $2}' /proc/net/tcp /proc/net/tcp6 2>/dev/null | \
+                  grep -i $(printf '%04X' $candidate))
+        if [ -z "$is_used" ]; then
+            p=$candidate
             break
         fi
     done
 fi
+
 LISTEN_PORT=$p
 info "线路机监听端口: $LISTEN_PORT"
 mkdir -p /etc/sing-box
