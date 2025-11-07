@@ -53,11 +53,11 @@ install_deps() {
     case "$OS" in
         alpine)
             apk update || { err "apk update 失败"; exit 1; }
-            apk add --no-cache bash curl ca-certificates openssl openrc || {
+            apk add --no-cache bash curl ca-certificates openssl openrc jq || {
                 err "依赖安装失败"
                 exit 1
             }
-            
+
             # 确保 OpenRC 运行
             if ! rc-service --list 2>/dev/null | grep -q "^openrc"; then
                 rc-update add openrc boot >/dev/null 2>&1 || true
@@ -67,13 +67,13 @@ install_deps() {
         debian)
             export DEBIAN_FRONTEND=noninteractive
             apt-get update -y || { err "apt update 失败"; exit 1; }
-            apt-get install -y curl ca-certificates openssl || {
+            apt-get install -y curl ca-certificates openssl jq || {
                 err "依赖安装失败"
                 exit 1
             }
             ;;
         redhat)
-            yum install -y curl ca-certificates openssl || {
+            yum install -y curl ca-certificates openssl jq || {
                 err "依赖安装失败"
                 exit 1
             }
@@ -404,7 +404,11 @@ generate_uri() {
     local encoded_userinfo
     if command -v python3 >/dev/null 2>&1; then
         encoded_userinfo=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "$userinfo" 2>/dev/null || echo "$userinfo")
+    elif command -v jq >/dev/null 2>&1; then
+        # 使用jq进行URL编码
+        encoded_userinfo=$(printf '%s' "$userinfo" | jq -sRr @uri)
     else
+        # 简单备用方案
         encoded_userinfo=$(printf "%s" "$userinfo" | sed 's/:/%3A/g; s/+/%2B/g; s/\//%2F/g; s/=/%3D/g')
     fi
     
@@ -538,43 +542,19 @@ read_config_fields() {
     fi
 
     # 验证JSON格式
-    if ! python3 -c "import json; json.load(open('$CONFIG_PATH'))" 2>/dev/null; then
+    if ! jq empty "$CONFIG_PATH" >/dev/null 2>&1; then
         err "配置文件格式错误或损坏: $CONFIG_PATH"
         return 1
     fi
 
-    if command -v python3 >/dev/null 2>&1; then
-        METHOD=$(python3 - <<PY
-import json,sys
-try:
-    c=json.load(open('$CONFIG_PATH'))
-    m=c.get('inbounds', [{}])[0].get('method','') if c.get('inbounds') else ''
-except Exception:
-    m=''
-print(m)
-PY
-)
-        PSK=$(python3 - <<PY
-import json,sys
-try:
-    c=json.load(open('$CONFIG_PATH'))
-    p=c.get('inbounds', [{}])[0].get('password','') if c.get('inbounds') else ''
-except Exception:
-    p=''
-print(p)
-PY
-)
-        PORT=$(python3 - <<PY
-import json,sys
-try:
-    c=json.load(open('$CONFIG_PATH'))
-    port=c.get('inbounds', [{}])[0].get('listen_port','') if c.get('inbounds') else ''
-except Exception:
-    port=''
-print(port)
-PY
-)
+    if command -v jq >/dev/null 2>&1; then
+        # 使用jq解析JSON
+        METHOD=$(jq -r '.inbounds[0].method // ""' "$CONFIG_PATH" 2>/dev/null || echo "")
+        PSK=$(jq -r '.inbounds[0].password // ""' "$CONFIG_PATH" 2>/dev/null || echo "")
+        PORT=$(jq -r '.inbounds[0].listen_port // ""' "$CONFIG_PATH" 2>/dev/null || echo "")
     else
+        # 备用方案：使用sed/grep（不推荐）
+        warn "未找到jq，使用备用方案解析"
         METHOD=$(grep -m1 '"method"' "$CONFIG_PATH" 2>/dev/null | sed -E 's/.*"method"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/' || true)
         PSK=$(grep -m1 '"password"' "$CONFIG_PATH" 2>/dev/null | sed -E 's/.*"password"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/' || true)
         PORT=$(grep -m1 '"listen_port"' "$CONFIG_PATH" 2>/dev/null | sed -E 's/.*"listen_port"[[:space:]]*:[[:space:]]*([0-9]+).*/\1/' || true)
@@ -604,7 +584,11 @@ import urllib.parse,sys
 print(urllib.parse.quote(sys.argv[1], safe=''))
 PY
 "$userinfo")
+    elif command -v jq >/dev/null 2>&1; then
+        # 使用jq进行URL编码
+        encoded_userinfo=$(printf '%s' "$userinfo" | jq -sRr @uri)
     else
+        # 简单备用方案
         encoded_userinfo=$(printf "%s" "$userinfo" | sed 's/:/%3A/g; s/+/%2B/g; s/\//%2F/g; s/=/%3D/g')
     fi
 
@@ -645,7 +629,7 @@ action_edit_config() {
     # 检查配置并重启服务
     if command -v sing-box >/dev/null 2>&1; then
         # 验证配置文件格式是否正确
-        if python3 -c "import json; json.load(open('$CONFIG_PATH'))" 2>/dev/null; then
+        if jq empty "$CONFIG_PATH" >/dev/null 2>&1; then
             if sing-box check -c "$CONFIG_PATH" >/dev/null 2>&1; then
                 info "配置校验通过，重启服务"
                 service_restart || warn "重启失败"
