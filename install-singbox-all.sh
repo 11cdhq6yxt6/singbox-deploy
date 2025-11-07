@@ -537,32 +537,38 @@ read_config_fields() {
         return 1
     fi
 
+    # 验证JSON格式
+    if ! python3 -c "import json; json.load(open('$CONFIG_PATH'))" 2>/dev/null; then
+        err "配置文件格式错误或损坏: $CONFIG_PATH"
+        return 1
+    fi
+
     if command -v python3 >/dev/null 2>&1; then
-        METHOD=$(python3 - <<'PY'
+        METHOD=$(python3 - <<PY
 import json,sys
-c=json.load(open('/etc/sing-box/config.json'))
 try:
-    m=c['inbounds'][0].get('method','')
+    c=json.load(open('$CONFIG_PATH'))
+    m=c.get('inbounds', [{}])[0].get('method','') if c.get('inbounds') else ''
 except Exception:
     m=''
 print(m)
 PY
 )
-        PSK=$(python3 - <<'PY'
+        PSK=$(python3 - <<PY
 import json,sys
-c=json.load(open('/etc/sing-box/config.json'))
 try:
-    p=c['inbounds'][0].get('password','')
+    c=json.load(open('$CONFIG_PATH'))
+    p=c.get('inbounds', [{}])[0].get('password','') if c.get('inbounds') else ''
 except Exception:
     p=''
 print(p)
 PY
 )
-        PORT=$(python3 - <<'PY'
+        PORT=$(python3 - <<PY
 import json,sys
-c=json.load(open('/etc/sing-box/config.json'))
 try:
-    port=c['inbounds'][0].get('listen_port','')
+    c=json.load(open('$CONFIG_PATH'))
+    port=c.get('inbounds', [{}])[0].get('listen_port','') if c.get('inbounds') else ''
 except Exception:
     port=''
 print(port)
@@ -636,13 +642,19 @@ action_edit_config() {
         ${EDITOR:-vi} "$CONFIG_PATH"
     fi
 
+    # 检查配置并重启服务
     if command -v sing-box >/dev/null 2>&1; then
-        if sing-box check -c "$CONFIG_PATH" >/dev/null 2>&1; then
-            info "配置校验通过，重启服务"
-            service_restart || warn "重启失败"
-            generate_and_save_uri || true
+        # 验证配置文件格式是否正确
+        if python3 -c "import json; json.load(open('$CONFIG_PATH'))" 2>/dev/null; then
+            if sing-box check -c "$CONFIG_PATH" >/dev/null 2>&1; then
+                info "配置校验通过，重启服务"
+                service_restart || warn "重启失败"
+                generate_and_save_uri || true
+            else
+                warn "配置校验失败，请手动检查。服务未被重启。"
+            fi
         else
-            warn "配置校验失败，请手动检查。服务未被重启。"
+            warn "配置文件格式错误，请检查JSON语法。服务未被重启。"
         fi
     else
         warn "未检测到 sing-box 可执行文件，无法校验或重启"
@@ -652,6 +664,15 @@ action_edit_config() {
 # Reset port & password
 action_reset_port_pwd() {
     [ -f "$CONFIG_PATH" ] || { err "配置文件不存在: $CONFIG_PATH"; return 1; }
+
+    # 先读取当前配置
+    read_config_fields || { err "无法读取当前配置"; return 1; }
+
+    # 检查必需字段
+    if [ -z "$METHOD" ]; then
+        err "无法从配置中获取加密方法，使用默认值"
+        METHOD="2022-blake3-aes-128-gcm"
+    fi
 
     read -p "输入新端口（回车随机 10000-60000）： " new_port
     [ -z "$new_port" ] && new_port=$((RANDOM % 50001 + 10000))
@@ -687,7 +708,7 @@ action_reset_port_pwd() {
 }
 EOF
 
-    info "已写入新端口($new_port)与新密码(隐藏)，正在启动服务..."
+    info "已写入新端口与新密码，正在启动服务..."
     service_start || warn "启动服务失败"
     generate_and_save_uri || warn "生成 SS URI 失败"
 }
